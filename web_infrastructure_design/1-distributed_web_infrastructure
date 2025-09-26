@@ -1,0 +1,80 @@
+## 🔹 Whiteboard
+```
+                        Internet
+                           |
+                DNS: www.foobar.com -> 8.8.8.8
+                           |
+                       +--------+
+                       |  HAProxy  |   <-- public IP 8.8.8.8
+                       | (TLS term; | 
+                       |  LB: leastconn)
+                       +--------+
+                           |
+              -------------------------------
+              |              |              |
+         +---------+     +---------+     +---------+
+         | Server-1|     | Server-2|     | Server-3|
+         | (app)   |     | (app)   |     | (db) or |
+         |         |     |         |     | (app)   |
+         +---------+     +---------+     +---------+
+         | - Firewall|   | - Firewall|   | - Firewall|
+         | - Nginx   |   | - Nginx   |   | - Nginx   |
+         | - App srv |   | - App srv |   | - App srv |
+         | - /app/   |   | - /app/   |   | - /app/   |
+         | - MySQL   |   | - MySQL   |   | - MySQL   |
+         | - Monitor |   | - Monitor |   | - Monitor |
+         +---------+     +---------+     +---------+
+```
+
+Internet → DNS → HAProxy (Load Balancer) → Multiple Servers (App + DB)
+
+yaml
+Copier le code
+
+- **DNS** → maps `www.foobar.com` to the public IP of the load balancer.  
+- **HAProxy** → distributes traffic between servers, checks health, and can handle TLS.  
+- **Servers** → run Nginx (web server), application code, and MySQL database.  
+- **MySQL** → one server acts as primary (writes), the other(s) as replicas (reads).  
+
+---
+
+## User Flow
+
+1. User types `www.foobar.com` in their browser.  
+2. DNS resolves the domain to the load balancer’s IP.  
+3. HAProxy forwards the request to one of the backend servers.  
+4. The server handles the request with:  
+   - **Nginx** → serves static files and forwards dynamic requests.  
+   - **App server** → runs the business logic.  
+   - **MySQL** → provides data (reads from replica, writes to primary).  
+5. The response flows back to the user’s browser.  
+
+---
+
+## Key Design Choices
+
+- **Load Balancer** → ensures traffic is shared, avoids overloading a single server.  
+- **Active-Active servers** → multiple servers can serve requests at the same time.  
+- **MySQL replication** → one primary for writes, one or more replicas for reads and failover.  
+- **Health checks** → HAProxy automatically removes unhealthy servers.  
+
+---
+
+## Benefits
+
+- Handles more traffic (scalability).  
+- Survives a server failure (better reliability).  
+- Allows maintenance without full downtime.  
+
+---
+
+## Weaknesses
+
+- **Single HAProxy** = still a single point of failure.  
+- **Primary DB** = single writer; if it fails, writes stop until manual failover.  
+- **No TLS / security by default**.  
+- **No monitoring** = issues may go unnoticed.  
+
+---
+
+In short: this design is **much better than a single server**, but still needs redundancy for the load balancer, automated DB failover, proper security, and monitoring to be production-ready.
