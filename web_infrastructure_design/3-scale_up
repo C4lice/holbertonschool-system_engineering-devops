@@ -1,0 +1,87 @@
+# whiteboard:
+
+```
+                        Internet
+                            |
+                            | www.foobar.com -> A 8.8.8.8 / 8.8.8.9
+                            |
+            [Perimeter Firewall / Cloud SG]  (Firewall #1)
+                            |
+                            v
+              +-------------------+   +-------------------+
+              | HAProxy #1 (8.8.8.8)|   | HAProxy #2 (8.8.8.9)|
+              | TLS termination     |   | TLS termination     |
+              | Health checks       |   | Health checks       |
+              +-------------------+   +-------------------+
+                     |       |       |        |       |
+                     v       v       v        v       v
+           +--------+  +--------+  +--------+  +--------+ (Private network 10.0.0.0/24)
+           |Web1    |  |Web2    |  |App1    |  |App2    |
+           |Nginx   |  |Nginx   |  |AppSrv  |  |AppSrv  |
+           +--------+  +--------+  +--------+  +--------+
+                     |       |       |       |
+                     v       v       v       v
+                  +--------------------+ +--------------------+
+                  | DB1 (MySQL)        | | DB2 (MySQL)        |
+                  +--------------------+ +--------------------+
+                           |
+      +---- backup/replication & monitoring aggregation ----+
+```
+# Explanation of Changes
+
+## 1. Added Server
+- **New Web/App node (`Web2` or `App2`)**  
+  - Purpose: add more capacity and redundancy.  
+  - Benefit: if one app server fails, traffic still flows; system can also handle more concurrent users.  
+  - Scaling: additional nodes can be added later without changing the front-end DNS.  
+
+---
+
+## 2. HAProxy Cluster
+- **Two load balancers (`HAProxy #1` + `HAProxy #2`)**  
+  - Run in an **Active-Passive** or **Active-Active** pair using VRRP/Keepalived.  
+  - Share a **virtual IP** → if one fails, the other takes over automatically.  
+  - Handle:  
+    - TLS termination (centralized certs, easier renewal).  
+    - Load balancing with health checks (remove unhealthy servers).  
+  - Benefit: no single point of failure at the entry point.  
+
+---
+
+## 3. Split Components
+- **Web servers (Nginx only)**  
+  - Serve static assets (HTML, CSS, JS, images).  
+  - Reverse proxy dynamic requests to app servers.  
+  - Keep the public-facing layer light and fast.  
+
+- **Application servers (Gunicorn, Node.js, etc.)**  
+  - Run the actual backend code (business logic).  
+  - Scale independently from web servers.  
+
+- **Database servers (MySQL only)**  
+  - Dedicated hosts for data persistence.  
+  - Allows fine-tuning DB separately from app/web.  
+  - Typical setup: 1 primary (writes) + 1 or more replicas (reads, failover).  
+
+---
+
+## 4. Firewall Segmentation
+- **Firewall #2 (HAProxy)**  
+  - Only expose TCP/443 (HTTPS) and minimal TCP/80 (for cert challenges).  
+  - Restrict SSH to admin IPs.  
+
+- **Firewall #3 (backend servers)**  
+  - Only accept traffic from HAProxy on app/web ports.  
+  - MySQL ports open only between DB servers (primary ↔ replicas).  
+  - Strict separation = reduced attack surface.  
+
+---
+
+## 5. Private Network
+- All servers connected to **`10.0.0.0/24` private subnet**.  
+- Frontend traffic: Internet → HAProxy (public IP).  
+- Internal traffic: HAProxy → web/app → DB (all private IPs).  
+- Benefits:  
+  - Backend systems not exposed directly to the internet.  
+  - Easier firewalling (e.g., block DB port from outside world).  
+  - More secure replication and monitoring (encrypted channel optional but recommended).  
