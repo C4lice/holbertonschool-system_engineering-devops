@@ -1,0 +1,95 @@
+# whiteboard:
+
+```
+            Internet
+                |
+                | www.foobar.com -> A 8.8.8.8
+                |
+        [Perimeter Firewall / Cloud SG]  (Firewall #1)
+                |
+                v
+        +-------------------+
+        | HAProxy (8.8.8.8) |  <-- Firewall #2 (host-level)
+        | - TLS termination |
+        | - Health checks   |
+        +-------------------+
+           |      |     |
+           v      v     v
+        +----+ +----+ +----+   (Private network 10.0.0.0/24)
+        |App1| |App2| |App3|   Backend hosts each run:
+        |Nginx|Nginx|Nginx|    - Nginx (reverse proxy / static) 
+        |App  |App  |App  |    - App server (Gunicorn/Node)
+        |MySQL|MySQL|MySQL|    - MySQL (App DB)  (Firewall #3 applied to backends)
+        +----+ +----+ +----+
+           |      |     |
++-- backup/replication & monitoring aggregation --+
+```
+# Three-Server Web Infrastructure (Simplified)
+
+## Why each element is added
+- **HAProxy (Server A)** → load balancer, central TLS, health checks, single public entrypoint.  
+- **Two App Hosts (B & C)** → redundancy for serving the app and static content.  
+- **MySQL Primary + Replica** → primary handles writes, replica handles reads and failover.  
+- **Firewalls (3 total)** → protect each server, only allow needed ports.  
+- **SSL Certificate** → encrypts traffic between users and the site.  
+- **Monitoring Agents (3 total)** → collect logs/metrics from each server for visibility.  
+
+---
+
+## Firewalls (purpose)
+- **Server A (LB)** → allow HTTPS (443), limited HTTP (80 for certs), SSH only from admin IP.  
+- **Server B (App)** → allow traffic only from LB, allow DB replication, SSH from admin IP.  
+- **Server C (App/DB)** → same as B; if replica, allow replication traffic from primary.  
+
+---
+
+## Why HTTPS is used
+- **Confidentiality** → protects user data in transit.  
+- **Integrity** → prevents tampering.  
+- **Authentication** → proves site identity (lock icon).  
+- **Compliance** → required by most standards.  
+
+---
+
+## Monitoring
+- **Agents on each host** collect logs (Nginx, app, MySQL) and metrics (CPU, memory, network, replication).  
+- **Central system** (e.g., Datadog, Prometheus + Grafana): dashboards + alerts.  
+- **Why** → detects failures, errors, slow queries, replication lag.  
+
+---
+
+## How to measure QPS (queries/sec)
+1. **Parse Nginx logs** → count requests per second.  
+2. **Nginx Prometheus exporter** → scrape metrics like `nginx_http_requests_total`.  
+3. **HAProxy metrics** → track requests per backend/frontend.  
+
+Best practice: use **Prometheus + exporter** for real-time dashboards, and logs for history.  
+
+---
+
+## Issues / Trade-offs
+
+1. **TLS at Load Balancer only**  
+   - Pro: simple cert management, offloads CPU.  
+   - Con: traffic from LB → servers is unencrypted.  
+   - Fix: re-encrypt to backends or trust internal network.  
+
+2. **Single Primary DB**  
+   - Pro: simple design.  
+   - Con: SPOF for writes, performance bottleneck.  
+   - Fix: use automated failover or clustered DB.  
+
+3. **All-in-one servers (app + DB)**  
+   - Pro: easy, cheap for small setups.  
+   - Con: resource contention, security risk, scaling limits.  
+   - Fix: separate DB from app servers or use managed DB service.  
+
+---
+
+This setup is **much stronger than a single server**:  
+- Load balancing  
+- Redundancy  
+- Encrypted traffic  
+- Basic monitoring  
+
+But it still has **weaknesses** (single LB, single DB primary, mixed roles on servers) that should be improved for production-grade systems.
