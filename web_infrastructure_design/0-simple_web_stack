@@ -1,0 +1,53 @@
+# Simple Web Infrastructure
+
+## Overview
+
+This configuration runs everything (web server, application and database) on a **single server**.
+
+```
+User → DNS → Serveur (8.8.8.8)
+                         |
+                     [Nginx]
+                        |
+                     [App code]
+                        |
+                     [MySQL DB]
+```
+
+---
+
+## User flow
+
+1. The user types **www.foobar.com** into their browser.  
+2. The DNS translates the domain name into an IP **8.8.8.8**.  
+3. The browser sends the request to **8.8.8.8**.  
+4. On the server :  
+   - Nginx** receives the request.  
+   - It forwards the request to the **application**.  
+   - The application can query the **MySQL** database.  
+   - The response is sent back to the user's browser via **Nginx**.  
+
+---
+
+## Components
+
+- **Server** → The physical/virtual machine that hosts everything.  
+- **Domain name (foobar.com)** → Friendly name instead of the IP.  
+- **DNS** → Translates the domain name into the server's IP.  
+- **Nginx** → Web server that handles HTTP/HTTPS requests.  
+- **Application** → Backend code (PHP, Python, Node.js, etc.).  
+- MySQL database** → Stores persistent data (users, products, etc.).  
+
+---
+
+## Limitations
+
+- Single point of failure** → If the server goes down, the whole site goes down.  
+- Maintenance downtime** → Deployments or reboots result in service interruptions.  
+- No scalability** → One server = limited traffic management.  
+
+---
+
+Works well for **small projects**, but is **not reliable or scalable** for larger systems.
+
+*** Translated with www.DeepL.com/Translator (free version) ***
